@@ -1,0 +1,59 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Bingo": {
+      "title": "Bingo",
+      "description": "A bingo board created by a user",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "theme": { "type": "string" },
+        "size": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "isCompleted": { "type": "boolean" },
+        "completedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "size", "createdAt"]
+    },
+    "BingoCell": {
+      "title": "BingoCell",
+      "description": "An individual cell in a bingo board",
+      "type": "object",
+      "properties": {
+        "index": { "type": "integer" },
+        "text": { "type": "string" },
+        "imageData": { "type": "string", "description": "Base64 encoded image data" },
+        "isCompleted": { "type": "boolean" },
+        "completedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["index", "isCompleted"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents"
+    },
+    "/bingos/{bingoId}": {
+      "schema": "Bingo",
+      "description": "Bingo board documents"
+    },
+    "/bingos/{bingoId}/cells/{cellId}": {
+      "schema": "BingoCell",
+      "description": "Cells within a bingo board"
+    }
+  }
+}

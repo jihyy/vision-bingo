@@ -1,0 +1,115 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: userId (uid)
+    // Fields:
+    //   - uid: string (required)
+    //   - email: string (required)
+    //   - displayName: string (optional)
+    //   - photoURL: string (optional)
+    //   - createdAt: timestamp (optional)
+    //
+    // Collection: bingos
+    // Document ID: bingoId
+    // Fields:
+    //   - userId: string (required)
+    //   - title: string (required)
+    //   - theme: string (optional)
+    //   - size: number (required, 3 or 4)
+    //   - createdAt: timestamp (required)
+    //   - isCompleted: bool (optional)
+    //   - completedAt: timestamp (optional)
+    //
+    // Collection: bingos/{bingoId}/cells
+    // Document ID: cellId
+    // Fields:
+    //   - index: number (required)
+    //   - text: string (optional)
+    //   - imageData: string (optional, base64)
+    //   - isCompleted: bool (required)
+    //   - completedAt: timestamp (optional)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "jhmin0427@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string && (email == "anonymous" || email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"));
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email']) &&
+             data.uid == request.auth.uid &&
+             isValidEmail(data.email) &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() < 100)) &&
+             (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() < 1000));
+    }
+
+    function isValidBingo(data) {
+      return data.keys().hasAll(['userId', 'title', 'size', 'createdAt']) &&
+             data.userId == request.auth.uid &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.size in [3, 4] &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidBingoCell(data) {
+      return data.keys().hasAll(['index', 'isCompleted']) &&
+             data.index is number && data.index >= 0 && data.index < 16 &&
+             data.isCompleted is bool &&
+             (!('text' in data) || (data.text is string && data.text.size() < 500)) &&
+             (!('imageData' in data) || (data.imageData is string && data.imageData.size() < 1048576)); // 1MB limit check
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && 
+                    request.resource.data.uid == resource.data.uid;
+    }
+
+    match /bingos/{bingoId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidBingo(request.resource.data);
+      allow update: if isDocOwner() && isValidBingo(request.resource.data) &&
+                    request.resource.data.userId == resource.data.userId &&
+                    request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isDocOwner();
+
+      match /cells/{cellId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated() && get(/databases/$(database)/documents/bingos/$(bingoId)).data.userId == request.auth.uid && isValidBingoCell(request.resource.data);
+        allow update: if isAuthenticated() && get(/databases/$(database)/documents/bingos/$(bingoId)).data.userId == request.auth.uid && isValidBingoCell(request.resource.data);
+      }
+    }
+  }
+}
