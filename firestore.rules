@@ -53,9 +53,11 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuthenticated() &&
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-          (request.auth.token.email == "jhmin0427@gmail.com" && request.auth.token.email_verified == true));
+      return isAuthenticated() && (
+        (request.auth.token.email == "jhmin0427@gmail.com" && request.auth.token.email_verified == true) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
     }
 
     function isValidEmail(email) {
@@ -71,28 +73,47 @@ service cloud.firestore {
     }
 
     function isValidBingo(data) {
+      let allowedFields = ['userId', 'title', 'theme', 'size', 'aspectRatio', 'createdAt', 'isCompleted', 'completedAt', 'isTemplate', 'isPinned', 'isArchived', 'archivedAt', 'stickers'];
       return data.keys().hasAll(['userId', 'title', 'size', 'createdAt']) &&
+             data.keys().hasOnly(allowedFields) &&
              data.userId == request.auth.uid &&
-             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
-             data.size in [3, 4] &&
-             data.createdAt is timestamp;
+             data.title is string && data.title.size() > 0 && data.title.size() < 500 &&
+             data.size in [3, 4, 5] &&
+             data.createdAt is timestamp &&
+             (!('theme' in data) || data.theme is string) &&
+             (!('aspectRatio' in data) || data.aspectRatio in ['1:1', '3:4']) &&
+             (!('isCompleted' in data) || data.isCompleted is bool) &&
+             (!('isTemplate' in data) || data.isTemplate is bool) &&
+             (!('isPinned' in data) || data.isPinned is bool) &&
+             (!('isArchived' in data) || data.isArchived is bool) &&
+             (!('stickers' in data) || data.stickers is list);
     }
 
     function isValidBingoCell(data) {
+      let allowedFields = ['index', 'text', 'imageData', 'visionImageData', 'isCompleted', 'completedAt'];
       return data.keys().hasAll(['index', 'isCompleted']) &&
+             data.keys().hasOnly(allowedFields) &&
              data.index is number && data.index >= 0 && data.index < 25 &&
              data.isCompleted is bool &&
-             (!('text' in data) || (data.text is string && data.text.size() < 1000)) &&
-             (!('imageData' in data) || (data.imageData is string && data.imageData.size() < 1048576)) &&
-             (!('visionImageData' in data) || (data.visionImageData is string && data.visionImageData.size() < 1048576));
+             (!('text' in data) || (data.text is string && data.text.size() < 5000)) &&
+             (!('imageData' in data) || data.imageData == null || (data.imageData is string && data.imageData.size() < 1048576)) &&
+             (!('visionImageData' in data) || data.visionImageData == null || (data.visionImageData is string && data.visionImageData.size() < 1048576));
     }
 
     // ===============================================================
     // Rules
     // ===============================================================
 
+    function isBingoOwner(bingoId) {
+      return isAuthenticated() && (
+        (exists(/databases/$(database)/documents/bingos/$(bingoId)) && 
+         get(/databases/$(database)/documents/bingos/$(bingoId)).data.userId == request.auth.uid) || 
+        isAdmin()
+      );
+    }
+
     match /users/{userId} {
-      allow read: if isAuthenticated(); // Allow reading user profiles if authenticated (needed for some UI)
+      allow read: if isAuthenticated();
       allow create: if isOwner(userId) && isValidUser(request.resource.data);
       allow update: if isOwner(userId) && isValidUser(request.resource.data) && 
                     request.resource.data.uid == resource.data.uid;
@@ -108,10 +129,10 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
 
       match /cells/{cellId} {
-        allow read: if isAuthenticated() && (get(/databases/$(database)/documents/bingos/$(bingoId)).data.userId == request.auth.uid || isAdmin());
-        allow create: if isAuthenticated() && (get(/databases/$(database)/documents/bingos/$(bingoId)).data.userId == request.auth.uid || isAdmin()) && isValidBingoCell(request.resource.data);
-        allow update: if isAuthenticated() && (get(/databases/$(database)/documents/bingos/$(bingoId)).data.userId == request.auth.uid || isAdmin()) && isValidBingoCell(request.resource.data);
-        allow delete: if isAuthenticated() && (get(/databases/$(database)/documents/bingos/$(bingoId)).data.userId == request.auth.uid || isAdmin());
+        allow read: if isBingoOwner(bingoId);
+        allow create: if isBingoOwner(bingoId) && isValidBingoCell(request.resource.data);
+        allow update: if isBingoOwner(bingoId) && isValidBingoCell(request.resource.data);
+        allow delete: if isBingoOwner(bingoId);
       }
     }
   }

@@ -25,6 +25,7 @@ import {
   Camera,
   CheckCircle2,
   Trash2,
+  Edit2,
   Save,
   Grid3X3,
   Grid2X2,
@@ -37,8 +38,10 @@ import {
   Crop,
   ChevronRight,
   Archive,
+  RotateCcw,
   Calendar as CalendarIconLucide,
-  Image as ImageIcon
+  Image as ImageIcon,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './utils';
@@ -98,7 +101,8 @@ const BingoCellItem: React.FC<{
   isEditing: boolean;
   isStamping: boolean;
   aspectRatio?: '1:1' | '3:4';
-}> = ({ cell, onUpdate, isEditing, isStamping, aspectRatio = '1:1' }) => {
+  readOnly?: boolean;
+}> = ({ cell, onUpdate, isEditing, isStamping, aspectRatio = '1:1', readOnly = false }) => {
   const [showCamera, setShowCamera] = useState(false);
   const [showUploadOptions, setShowUploadOptions] = useState(false);
   const [rawImage, setRawImage] = useState<string | null>(null);
@@ -182,10 +186,11 @@ const BingoCellItem: React.FC<{
         "relative overflow-hidden border transition-all duration-300 group",
         aspectRatio === '3:4' ? "aspect-[3/4]" : "aspect-square",
         cell.isCompleted ? "border-neutral-200 bg-neutral-50" : "border-neutral-200 bg-white",
-        !cell.isCompleted && !isEditing && "hover:border-neutral-400 cursor-pointer"
+        !isEditing && "hover:border-neutral-400 cursor-pointer"
       )}
       onClick={() => {
-        if (!isEditing && !isStamping && !cell.isCompleted) {
+        if (readOnly) return;
+        if (!isEditing && !isStamping) {
           setShowUploadOptions(true);
         }
       }}
@@ -197,7 +202,7 @@ const BingoCellItem: React.FC<{
           alt={cell.text} 
           className={cn(
             "w-full h-full object-cover transition-all duration-700",
-            !cell.isCompleted && "blur-[1px] grayscale-[5%] opacity-[0.15]"
+            !cell.isCompleted && "blur-[1px] grayscale-[10%] opacity-[0.25]"
           )}
           referrerPolicy="no-referrer"
         />
@@ -228,19 +233,22 @@ const BingoCellItem: React.FC<{
 
       {/* Text Overlay */}
       <div className={cn(
-        "absolute inset-0 flex items-center justify-center p-2 text-center transition-opacity duration-300",
-        cell.isCompleted ? "opacity-0" : "opacity-100"
+        "absolute inset-0 flex items-center justify-center p-2 text-center transition-opacity duration-300 z-10",
+        "opacity-100"
       )}>
         {!isEditing && (
-          <span className="text-[11px] font-bold text-neutral-800 leading-tight drop-shadow-sm">
+          <span className={cn(
+            "text-[11px] font-bold leading-tight drop-shadow-sm",
+            cell.isCompleted ? "text-white" : "text-black"
+          )}>
             {cell.text}
           </span>
         )}
       </div>
 
       {/* Hover Action (Capture) */}
-      {!cell.isCompleted && !isEditing && (
-        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/10 transition-opacity z-20">
+      {!isEditing && !isStamping && (
+        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/20 transition-opacity z-20">
           <div className="bg-white/90 p-3 rounded-none shadow-xl transform scale-90 group-hover:scale-100 transition-transform">
             <Camera size={24} className="text-neutral-900" />
           </div>
@@ -386,78 +394,7 @@ const BingoCellItem: React.FC<{
   );
 };
 
-const BingoBoard: React.FC<{
-  bingo: Bingo;
-  cells: BingoCell[];
-  onUpdateCell: (cellId: string, data: Partial<BingoCell>) => void;
-  isEditing: boolean;
-  isStamping: boolean;
-  selectedStampEmoji: string | null;
-  onStamp: (pos: { x: number, y: number }) => void;
-  boardRef: React.RefObject<HTMLDivElement>;
-}> = ({ bingo, cells, onUpdateCell, isEditing, isStamping, selectedStampEmoji, onStamp, boardRef }) => {
-  const sortedCells = [...cells].sort((a, b) => a.index - b.index);
-
-  const handleBoardClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isStamping || !boardRef.current) return;
-    const rect = boardRef.current.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-    onStamp({ x, y });
-  };
-
-  return (
-    <div className="relative w-full max-w-md mx-auto">
-      <div 
-        ref={boardRef}
-        onClick={handleBoardClick}
-        className={cn(
-          "grid w-full bg-neutral-200 border border-neutral-200 relative",
-          bingo.size === 3 ? "grid-cols-3 gap-px" : "grid-cols-4 gap-px",
-          isStamping && "cursor-crosshair"
-        )}
-      >
-        {sortedCells.map((cell) => (
-          <BingoCellItem 
-            key={cell.id} 
-            cell={cell} 
-            onUpdate={(data) => onUpdateCell(cell.id, data)}
-            isEditing={isEditing}
-            isStamping={isStamping}
-            aspectRatio={bingo.aspectRatio}
-          />
-        ))}
-
-        {/* Stickers Layer */}
-        {bingo.stickers?.map((sticker, i) => (
-          <motion.div
-            key={i}
-            initial={{ scale: 0, rotate: -20 }}
-            animate={{ scale: 1, rotate: 0 }}
-            className="absolute pointer-events-none text-4xl z-30 drop-shadow-xl"
-            style={{ 
-              left: `${sticker.x}%`, 
-              top: `${sticker.y}%`,
-              transform: 'translate(-50%, -50%)'
-            }}
-          >
-            {sticker.emoji}
-          </motion.div>
-        ))}
-      </div>
-      
-      {isStamping && (
-        <div className="absolute inset-0 bg-emerald-500/5 pointer-events-none border-2 border-emerald-500/20 animate-pulse flex items-center justify-center">
-          {selectedStampEmoji && (
-            <div className="bg-white/90 p-4 rounded-full shadow-2xl animate-bounce">
-              <span className="text-4xl">{selectedStampEmoji}</span>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
+// BingoBoard is defined below using forwardRef
 
 // --- Helper: Bingo Detection ---
 const checkBingos = (cells: BingoCell[], size: number): number => {
@@ -500,6 +437,78 @@ const checkBingos = (cells: BingoCell[], size: number): number => {
   return count;
 };
 
+const BingoBoard = React.forwardRef<HTMLDivElement, {
+  bingo: Bingo;
+  cells: BingoCell[];
+  onUpdateCell?: (cellId: string, data: Partial<BingoCell>) => void;
+  isEditing?: boolean;
+  isStamping?: boolean;
+  onStampPlace?: (x: number, y: number) => void;
+  readOnly?: boolean;
+  selectedStampEmoji?: string | null;
+}>(({ bingo, cells, onUpdateCell, isEditing = false, isStamping = false, onStampPlace, readOnly = false, selectedStampEmoji }, ref) => {
+  return (
+    <div 
+      ref={ref}
+      className={cn(
+        "bg-white shadow-2xl border-4 border-white overflow-hidden relative",
+        bingo.aspectRatio === '3:4' ? "aspect-[3/4]" : "aspect-square"
+      )}
+      onClick={(e) => {
+        if (isStamping && onStampPlace && !readOnly) {
+          const rect = e.currentTarget.getBoundingClientRect();
+          const x = ((e.clientX - rect.left) / rect.width) * 100;
+          const y = ((e.clientY - rect.top) / rect.height) * 100;
+          onStampPlace(x, y);
+        }
+      }}
+    >
+      <div className={cn(
+        "grid h-full",
+        bingo.size === 3 ? "grid-cols-3" : "grid-cols-4"
+      )}>
+        {cells.map((cell) => (
+          <BingoCellItem 
+            key={cell.id} 
+            cell={cell} 
+            onUpdate={(data) => onUpdateCell?.(cell.id, data)}
+            isEditing={isEditing}
+            isStamping={isStamping}
+            readOnly={readOnly}
+          />
+        ))}
+      </div>
+
+      {/* Stickers/Stamps */}
+      {bingo.stickers?.map((sticker, idx) => (
+        <div 
+          key={idx}
+          className="absolute pointer-events-none select-none text-5xl sm:text-6xl"
+          style={{ 
+            left: `${sticker.x}%`, 
+            top: `${sticker.y}%`,
+            transform: 'translate(-50%, -50%)'
+          }}
+        >
+          {sticker.emoji}
+        </div>
+      ))}
+
+      {/* Stamping Overlay */}
+      {isStamping && !readOnly && (
+        <div className="absolute inset-0 bg-emerald-500/10 cursor-crosshair z-20 flex items-center justify-center">
+          <div className="bg-white/90 backdrop-blur-sm px-4 py-2 rounded-none border border-emerald-200 shadow-lg animate-bounce">
+            <div className="flex flex-col items-center gap-1">
+              {selectedStampEmoji && <span className="text-2xl">{selectedStampEmoji}</span>}
+              <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Tap to place stamp</p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
+
 // --- Main App Views ---
 
 export default function App() {
@@ -514,6 +523,12 @@ export default function App() {
   const [selectedStampEmoji, setSelectedStampEmoji] = useState<string | null>(null);
   const [showStampSelector, setShowStampSelector] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [finishConfirmId, setFinishConfirmId] = useState<string | null>(null);
+  const [viewingBingo, setViewingBingo] = useState<Bingo | null>(null);
+  const [viewingCells, setViewingCells] = useState<BingoCell[]>([]);
+  const [templateSaved, setTemplateSaved] = useState(false);
+  const [isEditingTemplateTitle, setIsEditingTemplateTitle] = useState(false);
+  const [editingTemplateTitle, setEditingTemplateTitle] = useState('');
   const boardRef = React.useRef<HTMLDivElement>(null);
 
   const bingosAchieved = currentBingo ? checkBingos(currentCells, currentBingo.size) : 0;
@@ -538,12 +553,30 @@ export default function App() {
       const bingoList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Bingo));
       setBingos(bingoList);
       if (bingoList.length > 0 && !currentBingo) {
-        setCurrentBingo(bingoList[0]);
+        const activeBingo = bingoList.find(b => !b.isTemplate && !b.isArchived);
+        if (activeBingo) {
+          setCurrentBingo(activeBingo);
+        }
       }
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'bingos'));
 
     return () => unsubscribe();
   }, [user]);
+
+  // Sync currentBingo with updated data from bingos list
+  useEffect(() => {
+    if (currentBingo && bingos.length > 0) {
+      const updated = bingos.find(b => b.id === currentBingo.id);
+      if (updated && (
+        updated.isPinned !== currentBingo.isPinned || 
+        updated.isArchived !== currentBingo.isArchived ||
+        updated.stickers?.length !== (currentBingo.stickers?.length || 0) ||
+        updated.title !== currentBingo.title
+      )) {
+        setCurrentBingo(updated);
+      }
+    }
+  }, [bingos, currentBingo]);
 
   // Fetch Cells for current Bingo
   useEffect(() => {
@@ -559,6 +592,35 @@ export default function App() {
 
     return () => unsubscribe();
   }, [currentBingo]);
+
+  // Fetch Cells for viewing Bingo
+  useEffect(() => {
+    if (!viewingBingo) {
+      setViewingCells([]);
+      return;
+    }
+
+    const q = query(collection(db, 'bingos', viewingBingo.id, 'cells'), orderBy('index', 'asc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setViewingCells(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as BingoCell)));
+    }, (error) => handleFirestoreError(error, OperationType.LIST, `bingos/${viewingBingo.id}/cells`));
+
+    return () => unsubscribe();
+  }, [viewingBingo]);
+
+  // Check for board completion
+  useEffect(() => {
+    if (currentBingo && currentCells.length > 0 && !currentBingo.isCompleted && !currentBingo.isArchived) {
+      const allCompleted = currentCells.every(c => c.isCompleted);
+      if (allCompleted) {
+        updateDoc(doc(db, 'bingos', currentBingo.id), {
+          isCompleted: true,
+          completedAt: serverTimestamp()
+        });
+        setFinishConfirmId(currentBingo.id);
+      }
+    }
+  }, [currentCells, currentBingo]);
 
   const handleCreateBingo = async (title: string, size: number, theme: string, cellData: { text: string, visionImageData?: string }[], aspectRatio: '1:1' | '3:4' = '1:1', templateId?: string) => {
     if (!user) return;
@@ -617,10 +679,19 @@ export default function App() {
   const handleDownloadBoard = async () => {
     if (!boardRef.current || !currentBingo) return;
     try {
-      // Use a simpler capture approach to avoid cut-off issues
+      // Use explicit dimensions to avoid cut-off issues
+      const width = boardRef.current.clientWidth;
+      const height = boardRef.current.clientHeight;
+      
       const dataUrl = await toPng(boardRef.current, { 
         cacheBust: true,
-        pixelRatio: 3, // High quality
+        pixelRatio: 3,
+        width,
+        height,
+        style: {
+          transform: 'scale(1)',
+          margin: '0',
+        }
       });
       setExportImage(dataUrl);
       setShowExportPreview(true);
@@ -637,9 +708,12 @@ export default function App() {
         title: `${currentBingo.title} (Template)`,
         theme: currentBingo.theme,
         size: currentBingo.size,
+        aspectRatio: currentBingo.aspectRatio || '1:1',
         createdAt: serverTimestamp(),
         isCompleted: false,
-        isTemplate: true
+        isTemplate: true,
+        isPinned: false,
+        stickers: []
       });
 
       const batch = writeBatch(db);
@@ -649,13 +723,23 @@ export default function App() {
           index: cell.index,
           text: cell.text,
           visionImageData: cell.visionImageData || null,
+          imageData: null,
           isCompleted: false
         });
       });
       await batch.commit();
-      alert('Board saved as template!');
+      setTemplateSaved(true);
+      setTimeout(() => setTemplateSaved(false), 3000);
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'bingos');
+    }
+  };
+
+  const handleUpdateBingoTitle = async (id: string, newTitle: string) => {
+    try {
+      await updateDoc(doc(db, 'bingos', id), { title: newTitle });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `bingos/${id}`);
     }
   };
 
@@ -672,23 +756,27 @@ export default function App() {
     try {
       await deleteDoc(doc(db, 'bingos', id));
       if (currentBingo?.id === id) {
-        setCurrentBingo(bingos.find(b => b.id !== id) || null);
+        setCurrentBingo(bingos.find(b => b.id !== id && !b.isArchived && !b.isTemplate) || null);
+      }
+      if (viewingBingo?.id === id) {
+        setViewingBingo(null);
       }
       setDeleteConfirmId(null);
+      setView('list');
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `bingos/${id}`);
     }
   };
 
-  const handlePlaceStamp = async (pos: { x: number, y: number }) => {
+  const handlePlaceStamp = async (x: number, y: number) => {
     if (!currentBingo || !canPlaceStamp || !selectedStampEmoji) return;
-    await handleConfirmStamp(selectedStampEmoji, pos);
+    await handleConfirmStamp(selectedStampEmoji, x, y);
   };
 
-  const handleConfirmStamp = async (emoji: string, pos: { x: number, y: number }) => {
+  const handleConfirmStamp = async (emoji: string, x: number, y: number) => {
     if (!currentBingo) return;
     try {
-      const newSticker = { ...pos, emoji };
+      const newSticker = { x, y, emoji };
       const updatedStickers = [...(currentBingo.stickers || []), newSticker];
       
       await updateDoc(doc(db, 'bingos', currentBingo.id), {
@@ -709,7 +797,30 @@ export default function App() {
         archivedAt: serverTimestamp()
       });
       if (currentBingo?.id === id) {
-        setCurrentBingo(bingos.find(b => b.id !== id && !b.isArchived) || null);
+        const nextActive = bingos.find(b => b.id !== id && !b.isArchived && !b.isTemplate);
+        setCurrentBingo(nextActive || null);
+      }
+      if (viewingBingo?.id === id) {
+        setViewingBingo(null);
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `bingos/${id}`);
+    }
+  };
+
+  const handleRestoreBingo = async (id: string) => {
+    try {
+      await updateDoc(doc(db, 'bingos', id), {
+        isArchived: false,
+        archivedAt: null
+      });
+      
+      // Find the bingo and set it as current, then go home
+      const restoredBingo = bingos.find(b => b.id === id);
+      if (restoredBingo) {
+        setCurrentBingo({ ...restoredBingo, isArchived: false, archivedAt: null });
+        setViewingBingo(null);
+        setView('home');
       }
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `bingos/${id}`);
@@ -750,20 +861,20 @@ export default function App() {
   return (
     <div className="min-h-screen bg-neutral-50 pb-24">
       {/* Header */}
-      <header className="sticky top-0 z-30 bg-neutral-50/80 backdrop-blur-md px-6 py-6 flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-neutral-900">
+      <header className="sticky top-0 z-30 bg-neutral-50/80 backdrop-blur-md px-6 py-6 flex items-center justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <h2 className="text-xl font-bold text-neutral-900 truncate">
             {view === 'home' ? (currentBingo?.title || 'Daily Bingo') : 
              view === 'new' ? 'New Bingo' : 
              view === 'list' ? 'My Bingos' : 'Settings'}
           </h2>
           {view === 'home' && currentBingo && (
-            <p className="text-xs text-neutral-500 font-medium">
+            <p className="text-xs text-neutral-500 font-medium truncate">
               {new Date(currentBingo.createdAt?.toDate?.() || currentBingo.createdAt).toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
             </p>
           )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
           {view === 'home' && currentBingo && (
             <>
               <button 
@@ -776,9 +887,17 @@ export default function App() {
               >
                 <Pin size={20} fill={currentBingo.isPinned ? "currentColor" : "none"} />
               </button>
-              {!currentBingo.isArchived && (
+              {currentBingo.isArchived ? (
                 <button 
-                  onClick={() => handleFinishBingo(currentBingo.id)}
+                  onClick={() => handleRestoreBingo(currentBingo.id)}
+                  className="p-2 bg-emerald-600 text-white rounded-none hover:bg-emerald-700 transition-colors"
+                  title="Restore Board"
+                >
+                  <RotateCcw size={20} />
+                </button>
+              ) : (
+                <button 
+                  onClick={() => setFinishConfirmId(currentBingo.id)}
                   className="p-2 bg-neutral-900 text-white rounded-none hover:bg-neutral-800 transition-colors"
                   title="Finish Board"
                 >
@@ -814,15 +933,6 @@ export default function App() {
               >
                 <Download size={20} />
               </button>
-              {!currentBingo.isTemplate && (
-                <button 
-                  onClick={handleSaveAsTemplate}
-                  className="p-2 bg-neutral-200 text-neutral-600 rounded-none hover:bg-neutral-300 transition-colors"
-                  title="Save as Template"
-                >
-                  <LayoutTemplate size={20} />
-                </button>
-              )}
               <button 
                 onClick={() => setIsEditing(!isEditing)}
                 className={cn(
@@ -855,7 +965,7 @@ export default function App() {
               className="flex flex-col items-center"
             >
               {currentBingo ? (
-                <div className="w-full">
+                <div className="w-full max-w-md mx-auto">
                   <BingoBoard 
                     bingo={currentBingo} 
                     cells={currentCells} 
@@ -863,9 +973,22 @@ export default function App() {
                     isEditing={isEditing}
                     isStamping={isStamping}
                     selectedStampEmoji={selectedStampEmoji}
-                    onStamp={handlePlaceStamp}
-                    boardRef={boardRef}
+                    onStampPlace={handlePlaceStamp}
+                    ref={boardRef}
                   />
+                  
+                  {!currentBingo.isTemplate && (
+                    <div className="mt-4 flex justify-center">
+                      <button 
+                        onClick={handleSaveAsTemplate}
+                        className="flex items-center gap-2 px-3 py-1.5 text-neutral-400 hover:text-neutral-900 transition-colors"
+                      >
+                        <LayoutTemplate size={14} />
+                        <span className="text-[10px] font-bold uppercase tracking-widest">Save as Template</span>
+                      </button>
+                    </div>
+                  )}
+
                   <div className="mt-12 text-center max-w-md mx-auto">
                     <div className="flex justify-between items-end mb-2">
                       <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Progress</p>
@@ -900,22 +1023,25 @@ export default function App() {
                         <button onClick={() => setView('list')} className="text-[10px] font-bold text-neutral-900 uppercase underline">View All</button>
                       </div>
                       <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide px-1">
-                        {sortedBingos.filter(b => !b.isTemplate && b.id !== currentBingo.id && !b.isArchived).map(bingo => (
-                          <button
-                            key={bingo.id}
-                            onClick={() => setCurrentBingo(bingo)}
-                            className="flex-shrink-0 w-40 p-4 bg-white border border-neutral-200 text-left hover:border-neutral-400 transition-all shadow-sm relative group"
-                          >
-                            {bingo.isPinned && (
-                              <Pin size={12} className="absolute top-2 right-2 text-amber-500" fill="currentColor" />
-                            )}
-                            <h4 className="font-bold text-neutral-900 text-sm truncate mb-1">{bingo.title}</h4>
-                            <p className="text-[10px] text-neutral-500 truncate">{bingo.theme}</p>
-                            <div className="mt-3 w-full h-1 bg-neutral-100">
-                              <div className="h-full bg-neutral-300 w-1/3" />
-                            </div>
-                          </button>
-                        ))}
+                {sortedBingos.filter(b => !b.isTemplate && b.id !== currentBingo.id && !b.isArchived).map(bingo => (
+                  <button
+                    key={bingo.id}
+                    onClick={() => {
+                      setCurrentBingo(bingo);
+                      setView('home');
+                    }}
+                    className="flex-shrink-0 w-40 p-4 bg-white border border-neutral-200 text-left hover:border-neutral-400 transition-all shadow-sm relative group"
+                  >
+                    {bingo.isPinned && (
+                      <Pin size={12} className="absolute top-2 right-2 text-amber-500" fill="currentColor" />
+                    )}
+                    <h4 className="font-bold text-neutral-900 text-sm truncate mb-1">{bingo.title}</h4>
+                    <p className="text-[10px] text-neutral-500 truncate">{bingo.theme}</p>
+                    <div className="mt-3 w-full h-1 bg-neutral-100">
+                      <div className="h-full bg-neutral-300 w-1/3" />
+                    </div>
+                  </button>
+                ))}
                         <button 
                           onClick={() => setView('new')}
                           className="flex-shrink-0 w-40 p-4 border-2 border-dashed border-neutral-200 flex flex-col items-center justify-center gap-2 text-neutral-400 hover:border-neutral-400 hover:text-neutral-600 transition-all"
@@ -972,8 +1098,12 @@ export default function App() {
               <BingoCalendar 
                 bingos={bingos} 
                 onSelectBingo={(bingo) => {
-                  setCurrentBingo(bingo);
-                  setView('home');
+                  if (bingo.isArchived || bingo.isTemplate) {
+                    setViewingBingo(bingo);
+                  } else {
+                    setCurrentBingo(bingo);
+                    setView('home');
+                  }
                 }}
               />
 
@@ -1026,23 +1156,62 @@ export default function App() {
               <div className="space-y-4">
                 <h3 className="text-sm font-bold text-neutral-400 uppercase tracking-widest px-1">My Templates</h3>
                 {bingos.filter(b => b.isTemplate).map(bingo => (
-                  <button
-                    key={bingo.id}
-                    onClick={() => {
-                      setCurrentBingo(bingo);
-                      setView('home');
-                    }}
-                    className="w-full p-4 bg-emerald-50/50 rounded-none border border-emerald-100 flex items-center justify-between text-left hover:border-emerald-300 transition-all"
-                  >
-                    <div>
-                      <h4 className="font-bold text-emerald-900">{bingo.title}</h4>
-                      <p className="text-xs text-emerald-600/70">{bingo.theme} • {bingo.size}x{bingo.size}</p>
-                    </div>
-                    <div className="w-10 h-10 bg-white rounded-none flex items-center justify-center text-emerald-400 shadow-sm">
-                      <Save size={20} />
-                    </div>
-                  </button>
+                  <div key={bingo.id} className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setViewingBingo(bingo);
+                      }}
+                      className="flex-1 p-4 bg-emerald-50/50 rounded-none border border-emerald-100 flex items-center justify-between text-left hover:border-emerald-300 transition-all"
+                    >
+                      <div>
+                        <h4 className="font-bold text-emerald-900">{bingo.title}</h4>
+                        <p className="text-xs text-emerald-600/70">{bingo.theme} • {bingo.size}x{bingo.size}</p>
+                      </div>
+                      <div className="w-10 h-10 bg-white rounded-none flex items-center justify-center text-emerald-400 shadow-sm">
+                        <LayoutTemplate size={20} />
+                      </div>
+                    </button>
+                    <button 
+                      onClick={() => setDeleteConfirmId(bingo.id)}
+                      className="px-3 bg-white border border-red-100 text-red-300 hover:text-red-500 hover:border-red-200 transition-colors"
+                      title="Delete Template"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
                 ))}
+              </div>
+
+              <div className="space-y-4">
+                <h3 className="text-sm font-bold text-neutral-400 uppercase tracking-widest px-1">Archived Boards</h3>
+                {sortedBingos.filter(b => !b.isTemplate && b.isArchived).map(bingo => (
+                  <div key={bingo.id} className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setViewingBingo(bingo);
+                      }}
+                      className="flex-1 p-4 bg-neutral-100/50 rounded-none border border-neutral-200 flex items-center justify-between text-left hover:border-neutral-300 transition-all opacity-70"
+                    >
+                      <div>
+                        <h4 className="font-bold text-neutral-900">{bingo.title}</h4>
+                        <p className="text-xs text-neutral-500">{bingo.theme} • {bingo.size}x{bingo.size}</p>
+                      </div>
+                      <div className="w-10 h-10 bg-white rounded-none flex items-center justify-center text-neutral-400">
+                        <Archive size={20} />
+                      </div>
+                    </button>
+                    <button 
+                      onClick={() => handleRestoreBingo(bingo.id)}
+                      className="px-3 bg-white border border-neutral-200 text-neutral-400 hover:text-emerald-600 hover:border-emerald-200 transition-colors"
+                      title="Restore Board"
+                    >
+                      <RotateCcw size={18} />
+                    </button>
+                  </div>
+                ))}
+                {sortedBingos.filter(b => !b.isTemplate && b.isArchived).length === 0 && (
+                  <p className="text-center py-4 text-neutral-400 text-xs italic">No archived boards.</p>
+                )}
               </div>
             </motion.div>
           )}
@@ -1083,10 +1252,168 @@ export default function App() {
 
       {/* Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-neutral-200 px-8 py-4 flex items-center justify-between z-40">
-        <NavButton active={view === 'home'} onClick={() => setView('home')} icon={<HomeIcon size={24} />} />
+        <NavButton 
+          active={view === 'home'} 
+          onClick={() => {
+            if (view !== 'home' || !currentBingo || currentBingo.isArchived || currentBingo.isTemplate) {
+              const active = bingos.find(b => !b.isArchived && !b.isTemplate);
+              if (active) setCurrentBingo(active);
+            }
+            setView('home');
+          }} 
+          icon={<HomeIcon size={24} />} 
+        />
         <NavButton active={view === 'list'} onClick={() => setView('list')} icon={<CalendarIcon size={24} />} />
         <NavButton active={view === 'settings'} onClick={() => setView('settings')} icon={<SettingsIcon size={24} />} />
       </nav>
+
+      <AnimatePresence>
+        {viewingBingo && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] bg-white flex flex-col"
+          >
+            <div className="p-4 border-b border-neutral-200 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={() => setViewingBingo(null)}
+                  className="p-2 hover:bg-neutral-100 transition-colors"
+                >
+                  <ChevronLeft size={24} />
+                </button>
+                <div>
+                  {isEditingTemplateTitle && viewingBingo.isTemplate ? (
+                    <div className="flex items-center gap-2">
+                      <input 
+                        autoFocus
+                        value={editingTemplateTitle}
+                        onChange={(e) => setEditingTemplateTitle(e.target.value)}
+                        onBlur={async () => {
+                          if (editingTemplateTitle.trim() && editingTemplateTitle !== viewingBingo.title) {
+                            await handleUpdateBingoTitle(viewingBingo.id, editingTemplateTitle);
+                            setViewingBingo({ ...viewingBingo, title: editingTemplateTitle });
+                          }
+                          setIsEditingTemplateTitle(false);
+                        }}
+                        onKeyDown={async (e) => {
+                          if (e.key === 'Enter') {
+                            if (editingTemplateTitle.trim() && editingTemplateTitle !== viewingBingo.title) {
+                              await handleUpdateBingoTitle(viewingBingo.id, editingTemplateTitle);
+                              setViewingBingo({ ...viewingBingo, title: editingTemplateTitle });
+                            }
+                            setIsEditingTemplateTitle(false);
+                          }
+                        }}
+                        className="font-black text-neutral-900 uppercase italic tracking-tight bg-neutral-100 px-2 py-1 focus:outline-none"
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 group">
+                      <h3 className="font-black text-neutral-900 uppercase italic tracking-tight">{viewingBingo.title}</h3>
+                      {viewingBingo.isTemplate && (
+                        <button 
+                          onClick={() => {
+                            setEditingTemplateTitle(viewingBingo.title);
+                            setIsEditingTemplateTitle(true);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1 text-neutral-400 hover:text-neutral-900 transition-all"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
+                    {viewingBingo.isTemplate ? 'Template' : (viewingBingo.isArchived ? 'Archived' : 'Active')}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {viewingBingo.isArchived && (
+                  <button 
+                    onClick={() => handleRestoreBingo(viewingBingo.id)}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-600 border border-emerald-100 text-[10px] font-bold uppercase tracking-widest"
+                  >
+                    <RotateCcw size={14} />
+                    Restore
+                  </button>
+                )}
+                <button 
+                  onClick={() => setViewingBingo(null)}
+                  className="p-2 hover:bg-neutral-100 transition-colors"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6 space-y-8">
+              <div className="max-w-md mx-auto">
+                <BingoBoard 
+                  bingo={viewingBingo}
+                  cells={viewingCells}
+                  readOnly={true}
+                />
+              </div>
+
+              <div className="max-w-md mx-auto space-y-6">
+                <div className="flex items-center justify-between px-1">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Progress</p>
+                    <p className="text-xl font-black text-neutral-900 italic">
+                      {viewingCells.filter(c => c.isCompleted).length} / {viewingBingo.size * viewingBingo.size}
+                    </p>
+                  </div>
+                  <div className="text-right space-y-1">
+                    <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Theme</p>
+                    <p className="text-xl font-black text-neutral-900 italic uppercase">
+                      {viewingBingo.theme}
+                    </p>
+                  </div>
+                </div>
+
+                {viewingBingo.isTemplate && (
+                  <div className="space-y-3">
+                    <button 
+                      onClick={() => {
+                        setViewingBingo(null);
+                        setView('new');
+                      }}
+                      className="w-full py-4 bg-neutral-900 text-white font-black uppercase tracking-widest italic hover:bg-neutral-800 transition-colors"
+                    >
+                      Use This Template
+                    </button>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                      <button 
+                        onClick={() => {
+                          setCurrentBingo(viewingBingo);
+                          setIsEditing(true);
+                          setViewingBingo(null);
+                          setView('home');
+                        }}
+                        className="flex items-center justify-center gap-2 py-3 border border-neutral-200 text-neutral-600 font-bold uppercase text-xs tracking-widest hover:bg-neutral-50 transition-colors"
+                      >
+                        <Edit2 size={16} />
+                        Edit Board
+                      </button>
+                      <button 
+                        onClick={() => setDeleteConfirmId(viewingBingo.id)}
+                        className="flex items-center justify-center gap-2 py-3 border border-red-100 text-red-500 font-bold uppercase text-xs tracking-widest hover:bg-red-50 transition-colors"
+                      >
+                        <Trash2 size={16} />
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {showExportPreview && exportImage && (
@@ -1111,6 +1438,27 @@ export default function App() {
         confirmText="Delete"
       />
 
+      <ConfirmModal 
+        isOpen={!!finishConfirmId}
+        title="Finish & Archive Board"
+        message="Congratulations! You've finished this board. Would you like to download a commemorative image before archiving it?"
+        onConfirm={async () => {
+          if (finishConfirmId) {
+            await handleDownloadBoard();
+            await handleFinishBingo(finishConfirmId);
+            setFinishConfirmId(null);
+          }
+        }}
+        onCancel={async () => {
+          if (finishConfirmId) {
+            await handleFinishBingo(finishConfirmId);
+            setFinishConfirmId(null);
+          }
+        }}
+        confirmText="Download & Archive"
+        cancelText="Just Archive"
+      />
+
       <StampSelectorModal 
         isOpen={showStampSelector}
         onSelect={(emoji) => {
@@ -1120,6 +1468,20 @@ export default function App() {
         }}
         onCancel={() => setShowStampSelector(false)}
       />
+
+      <AnimatePresence>
+        {templateSaved && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[300] bg-emerald-500 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3"
+          >
+            <CheckCircle2 size={20} />
+            <span className="text-sm font-bold uppercase tracking-widest">Template Saved!</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -1200,13 +1562,19 @@ const BingoCalendar: React.FC<{
   }
 
   const getBingosForDate = (date: Date) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    
+    // Don't show boards for future dates in the history view
+    if (d > today) return [];
+
     return bingos.filter(b => {
       if (b.isTemplate) return false;
       const createdAt = b.createdAt?.toDate?.() || new Date(b.createdAt);
       const archivedAt = b.archivedAt?.toDate?.() || (b.archivedAt ? new Date(b.archivedAt) : null);
-      
-      const d = new Date(date);
-      d.setHours(0, 0, 0, 0);
       
       const start = new Date(createdAt);
       start.setHours(0, 0, 0, 0);
@@ -1259,8 +1627,22 @@ const BingoCalendar: React.FC<{
             const isToday = date.toDateString() === new Date().toDateString();
             const isSelected = selectedDate?.toDateString() === date.toDateString();
             const dayBingos = getBingosForDate(date);
-            const hasBingos = dayBingos.length > 0;
-            const allCompleted = hasBingos && dayBingos.every(b => b.isCompleted);
+            
+            // A dot should represent a significant event: creation or completion
+            const createdToday = dayBingos.some(b => {
+              const createdAt = b.createdAt?.toDate?.() || new Date(b.createdAt);
+              const cDate = new Date(createdAt);
+              cDate.setHours(0, 0, 0, 0);
+              return date.getTime() === cDate.getTime();
+            });
+            
+            const completedToday = dayBingos.some(b => {
+              if (!b.isCompleted || !b.completedAt) return false;
+              const completedAt = b.completedAt?.toDate?.() || new Date(b.completedAt);
+              const compDate = new Date(completedAt);
+              compDate.setHours(0, 0, 0, 0);
+              return date.getTime() === compDate.getTime();
+            });
 
             return (
               <button
@@ -1273,10 +1655,10 @@ const BingoCalendar: React.FC<{
                 )}
               >
                 <span>{date.getDate()}</span>
-                {hasBingos && !isSelected && (
+                {(createdToday || completedToday) && !isSelected && (
                   <div className={cn(
                     "absolute bottom-1 w-1 h-1 rounded-full",
-                    allCompleted ? "bg-emerald-500" : "bg-neutral-300"
+                    completedToday ? "bg-emerald-500" : "bg-neutral-300"
                   )} />
                 )}
               </button>
@@ -1308,7 +1690,7 @@ const BingoCalendar: React.FC<{
                   <div className="ml-4 flex items-center gap-3">
                     <div className="text-right">
                       <p className="text-[10px] font-bold text-neutral-900">
-                        {bingo.isCompleted ? '100%' : 'In Progress'}
+                        {bingo.isArchived ? 'Archived' : (bingo.isCompleted ? '100%' : 'In Progress')}
                       </p>
                     </div>
                     <div className={cn(
