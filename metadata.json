@@ -1,5 +1,5 @@
 {
-  "name": "Bingo Journal",
+  "name": "VisionBingo",
   "description": "A daily journal app where you capture your routines and goals in a bingo board format with photos.",
   "requestFramePermissions": ["camera"]
 }

@@ -59,13 +59,13 @@ service cloud.firestore {
     }
 
     function isValidEmail(email) {
-      return email is string && (email == "anonymous" || email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"));
+      return email == null || (email is string && (email == "anonymous" || email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$")));
     }
 
     function isValidUser(data) {
-      return data.keys().hasAll(['uid', 'email']) &&
+      return data.keys().hasAll(['uid']) &&
              data.uid == request.auth.uid &&
-             isValidEmail(data.email) &&
+             (!('email' in data) || isValidEmail(data.email)) &&
              (!('displayName' in data) || (data.displayName is string && data.displayName.size() < 100)) &&
              (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() < 1000));
     }
@@ -80,10 +80,11 @@ service cloud.firestore {
 
     function isValidBingoCell(data) {
       return data.keys().hasAll(['index', 'isCompleted']) &&
-             data.index is number && data.index >= 0 && data.index < 16 &&
+             data.index is number && data.index >= 0 && data.index < 25 &&
              data.isCompleted is bool &&
-             (!('text' in data) || (data.text is string && data.text.size() < 500)) &&
-             (!('imageData' in data) || (data.imageData is string && data.imageData.size() < 1048576)); // 1MB limit check
+             (!('text' in data) || (data.text is string && data.text.size() < 1000)) &&
+             (!('imageData' in data) || (data.imageData is string && data.imageData.size() < 1048576)) &&
+             (!('visionImageData' in data) || (data.visionImageData is string && data.visionImageData.size() < 1048576));
     }
 
     // ===============================================================
@@ -91,24 +92,26 @@ service cloud.firestore {
     // ===============================================================
 
     match /users/{userId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthenticated(); // Allow reading user profiles if authenticated (needed for some UI)
       allow create: if isOwner(userId) && isValidUser(request.resource.data);
       allow update: if isOwner(userId) && isValidUser(request.resource.data) && 
                     request.resource.data.uid == resource.data.uid;
     }
 
     match /bingos/{bingoId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isAuthenticated() && isValidBingo(request.resource.data);
-      allow update: if isDocOwner() && isValidBingo(request.resource.data) &&
+      allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin()) && 
+                    isValidBingo(request.resource.data) &&
                     request.resource.data.userId == resource.data.userId &&
                     request.resource.data.createdAt == resource.data.createdAt;
-      allow delete: if isDocOwner();
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
 
       match /cells/{cellId} {
-        allow read: if isAuthenticated();
-        allow create: if isAuthenticated() && get(/databases/$(database)/documents/bingos/$(bingoId)).data.userId == request.auth.uid && isValidBingoCell(request.resource.data);
-        allow update: if isAuthenticated() && get(/databases/$(database)/documents/bingos/$(bingoId)).data.userId == request.auth.uid && isValidBingoCell(request.resource.data);
+        allow read: if isAuthenticated() && (get(/databases/$(database)/documents/bingos/$(bingoId)).data.userId == request.auth.uid || isAdmin());
+        allow create: if isAuthenticated() && (get(/databases/$(database)/documents/bingos/$(bingoId)).data.userId == request.auth.uid || isAdmin()) && isValidBingoCell(request.resource.data);
+        allow update: if isAuthenticated() && (get(/databases/$(database)/documents/bingos/$(bingoId)).data.userId == request.auth.uid || isAdmin()) && isValidBingoCell(request.resource.data);
+        allow delete: if isAuthenticated() && (get(/databases/$(database)/documents/bingos/$(bingoId)).data.userId == request.auth.uid || isAdmin());
       }
     }
   }

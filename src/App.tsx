@@ -46,6 +46,7 @@ import { PhotoCapture } from './components/PhotoCapture';
 import { ConfirmModal } from './components/ConfirmModal';
 import { ImageCropper } from './components/ImageCropper';
 import { ExportPreview } from './components/ExportPreview';
+import { LoginScreen } from './components/LoginScreen';
 
 import { toPng } from 'html-to-image';
 
@@ -504,6 +505,7 @@ const checkBingos = (cells: BingoCell[], size: number): number => {
 export default function App() {
   const { user, loading, logout } = useFirebase();
   const [view, setView] = useState<'home' | 'new' | 'list' | 'settings'>('home');
+
   const [bingos, setBingos] = useState<Bingo[]>([]);
   const [currentBingo, setCurrentBingo] = useState<Bingo | null>(null);
   const [currentCells, setCurrentCells] = useState<BingoCell[]>([]);
@@ -730,7 +732,7 @@ export default function App() {
     return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
   });
 
-  if (loading || !user) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-neutral-50 flex items-center justify-center">
         <div className="animate-pulse flex flex-col items-center gap-4">
@@ -739,6 +741,10 @@ export default function App() {
         </div>
       </div>
     );
+  }
+
+  if (!user) {
+    return <LoginScreen />;
   }
 
   return (
