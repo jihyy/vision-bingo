@@ -474,6 +474,7 @@ const BingoBoard = React.forwardRef<HTMLDivElement, {
             onUpdate={(data) => onUpdateCell?.(cell.id, data)}
             isEditing={isEditing}
             isStamping={isStamping}
+            aspectRatio={bingo.aspectRatio}
             readOnly={readOnly}
           />
         ))}
@@ -2059,6 +2060,7 @@ const NewBingoForm: React.FC<{
                 onClick={() => {
                   setSelectedTemplate(t.id);
                   handleSizeChange(t.size);
+                  setAspectRatio(t.aspectRatio || '1:1');
                   if (!theme) setTheme(t.theme);
                 }}
                 className={cn(
