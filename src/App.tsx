@@ -552,12 +552,15 @@ export default function App() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const bingoList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Bingo));
       setBingos(bingoList);
-      if (bingoList.length > 0 && !currentBingo) {
-        const activeBingo = bingoList.find(b => !b.isTemplate && !b.isArchived);
-        if (activeBingo) {
-          setCurrentBingo(activeBingo);
+      
+      setCurrentBingo(prev => {
+        if (!prev && bingoList.length > 0) {
+          const activeBingo = bingoList.find(b => b.isPinned && !b.isTemplate && !b.isArchived) || 
+                             bingoList.find(b => !b.isTemplate && !b.isArchived);
+          return activeBingo || null;
         }
-      }
+        return prev;
+      });
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'bingos'));
 
     return () => unsubscribe();
@@ -756,7 +759,9 @@ export default function App() {
     try {
       await deleteDoc(doc(db, 'bingos', id));
       if (currentBingo?.id === id) {
-        setCurrentBingo(bingos.find(b => b.id !== id && !b.isArchived && !b.isTemplate) || null);
+        const nextActive = bingos.find(b => b.id !== id && b.isPinned && !b.isArchived && !b.isTemplate) ||
+                          bingos.find(b => b.id !== id && !b.isArchived && !b.isTemplate);
+        setCurrentBingo(nextActive || null);
       }
       if (viewingBingo?.id === id) {
         setViewingBingo(null);
@@ -797,7 +802,8 @@ export default function App() {
         archivedAt: serverTimestamp()
       });
       if (currentBingo?.id === id) {
-        const nextActive = bingos.find(b => b.id !== id && !b.isArchived && !b.isTemplate);
+        const nextActive = bingos.find(b => b.id !== id && b.isPinned && !b.isArchived && !b.isTemplate) ||
+                          bingos.find(b => b.id !== id && !b.isArchived && !b.isTemplate);
         setCurrentBingo(nextActive || null);
       }
       if (viewingBingo?.id === id) {
@@ -1256,7 +1262,8 @@ export default function App() {
           active={view === 'home'} 
           onClick={() => {
             if (view !== 'home' || !currentBingo || currentBingo.isArchived || currentBingo.isTemplate) {
-              const active = bingos.find(b => !b.isArchived && !b.isTemplate);
+              const active = bingos.find(b => b.isPinned && !b.isArchived && !b.isTemplate) ||
+                            bingos.find(b => !b.isArchived && !b.isTemplate);
               if (active) setCurrentBingo(active);
             }
             setView('home');
