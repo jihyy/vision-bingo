@@ -34,7 +34,7 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   // Helper to convert nickname to a dummy email for Firebase Auth
-  const nicknameToEmail = (nickname: string) => `${nickname.toLowerCase().trim()}@visionbingo.com`;
+  const nicknameToEmail = (nickname: string) => `${nickname.trim()}@visionbingo.com`;
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {

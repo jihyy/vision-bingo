@@ -451,7 +451,7 @@ const BingoBoard = React.forwardRef<HTMLDivElement, {
     <div 
       ref={ref}
       className={cn(
-        "bg-white shadow-2xl border-4 border-white overflow-hidden relative",
+        "bg-white shadow-2xl border-4 border-white relative",
         bingo.aspectRatio === '3:4' ? "aspect-[3/4]" : "aspect-square"
       )}
       onClick={(e) => {
@@ -484,7 +484,7 @@ const BingoBoard = React.forwardRef<HTMLDivElement, {
       {bingo.stickers?.map((sticker, idx) => (
         <div 
           key={idx}
-          className="absolute pointer-events-none select-none text-5xl sm:text-6xl"
+          className="absolute pointer-events-none select-none text-5xl sm:text-6xl z-30"
           style={{ 
             left: `${sticker.x}%`, 
             top: `${sticker.y}%`,

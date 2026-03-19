@@ -1,1 +1,6 @@
 @import "tailwindcss";
+
+/* Prevent mobile zoom on Fabric.js hidden textarea */
+.canvas-container textarea {
+  font-size: 16px !important;
+}

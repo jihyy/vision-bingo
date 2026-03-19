@@ -13,6 +13,7 @@ interface ExportPreviewProps {
 export const ExportPreview: React.FC<ExportPreviewProps> = ({ image, onClose, title }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
+  const scaleRef = useRef<number>(1);
   const [mode, setMode] = useState<'text'>('text');
   const [color, setColor] = useState('#000000');
   const [isReady, setIsReady] = useState(false);
@@ -96,16 +97,12 @@ export const ExportPreview: React.FC<ExportPreviewProps> = ({ image, onClose, ti
           availableHeight / canvasHeight
         );
         
-        const container = canvas.getElement().parentElement;
-        if (container) {
-          container.style.transform = `scale(${scale})`;
-          container.style.transformOrigin = 'center center';
-          container.style.position = 'absolute';
-          container.style.left = '50%';
-          container.style.top = '50%';
-          container.style.marginLeft = `-${(canvasWidth / 2)}px`;
-          container.style.marginTop = `-${(canvasHeight / 2)}px`;
-        }
+        scaleRef.current = scale;
+        canvas.setZoom(scale);
+        canvas.setDimensions({
+          width: canvasWidth * scale,
+          height: canvasHeight * scale
+        });
       }
     };
 
@@ -177,7 +174,7 @@ export const ExportPreview: React.FC<ExportPreviewProps> = ({ image, onClose, ti
     const dataUrl = fabricCanvasRef.current.toDataURL({
       format: 'png',
       quality: 1,
-      multiplier: 1,
+      multiplier: 1 / scaleRef.current,
     });
     const link = document.createElement('a');
     link.download = `${title}-film.png`;
