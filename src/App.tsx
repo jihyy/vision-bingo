@@ -309,6 +309,22 @@ const BingoCellItem: React.FC<{
                 {cell.isCompleted ? "Edit Goal Image" : "Complete Goal"}
               </h3>
               <div className="grid grid-cols-2 gap-4">
+                {cell.isCompleted && (
+                  <button 
+                    onClick={() => {
+                      onUpdate({ 
+                        imageData: null, 
+                        isCompleted: false, 
+                        completedAt: null 
+                      });
+                      setShowUploadOptions(false);
+                    }}
+                    className="col-span-2 flex items-center justify-center gap-3 p-4 bg-red-50 text-red-600 rounded-none hover:bg-red-100 transition-colors"
+                  >
+                    <RotateCcw size={20} />
+                    <span className="text-sm font-bold uppercase tracking-widest">Reset Achievement</span>
+                  </button>
+                )}
                 {(cell.imageData || cell.visionImageData) && (
                   <button 
                     onClick={() => {
@@ -1754,6 +1770,25 @@ const NewBingoForm: React.FC<{
   const [showUploadOptions, setShowUploadOptions] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [isLoadingTemplate, setIsLoadingTemplate] = useState(false);
+
+  useEffect(() => {
+    if (selectedTemplate) {
+      const fetchTemplateCells = async () => {
+        setIsLoadingTemplate(true);
+        try {
+          const cellsSnap = await getDocs(collection(db, 'bingos', selectedTemplate, 'cells'));
+          const cells = cellsSnap.docs.map(doc => doc.data() as BingoCell).sort((a, b) => a.index - b.index);
+          setCellData(cells.map(c => ({ text: c.text, visionImageData: c.visionImageData })));
+        } catch (err) {
+          console.error('Failed to fetch template cells', err);
+        } finally {
+          setIsLoadingTemplate(false);
+        }
+      };
+      fetchTemplateCells();
+    }
+  }, [selectedTemplate]);
 
   const handleSizeChange = (newSize: number) => {
     setSize(newSize);
@@ -1835,9 +1870,14 @@ const NewBingoForm: React.FC<{
         </div>
 
         <div className={cn(
-          "grid gap-2",
+          "grid gap-2 relative",
           size === 3 ? "grid-cols-3" : "grid-cols-4"
         )}>
+          {isLoadingTemplate && (
+            <div className="absolute inset-0 z-50 bg-white/60 backdrop-blur-sm flex items-center justify-center">
+              <div className="w-8 h-8 border-4 border-neutral-900 border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
           {cellData.map((cell, i) => (
             <div key={i} className={cn(
               "relative bg-neutral-50 border border-neutral-200 group overflow-hidden",

@@ -14,6 +14,7 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({ onCapture, onClose }
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const streamRef = useRef<MediaStream | null>(null);
   const isStartingRef = useRef(false);
@@ -32,6 +33,7 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({ onCapture, onClose }
   const startCamera = async (mode: 'user' | 'environment') => {
     if (isStartingRef.current) return;
     isStartingRef.current = true;
+    setError(null);
 
     try {
       // 1. Stop and cleanup previous stream
@@ -41,9 +43,7 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({ onCapture, onClose }
       await new Promise(resolve => setTimeout(resolve, 200));
 
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        console.error('getUserMedia is not supported');
-        isStartingRef.current = false;
-        return;
+        throw new Error('Camera access is not supported in this browser.');
       }
 
       let mediaStream: MediaStream | null = null;
@@ -58,7 +58,7 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({ onCapture, onClose }
           audio: false,
         },
         {
-          video: { facingMode: mode },
+          video: { facingMode: { ideal: mode } },
           audio: false,
         },
         {
@@ -67,17 +67,26 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({ onCapture, onClose }
         }
       ];
 
+      let lastError: any = null;
       for (const constraint of constraints) {
         try {
           mediaStream = await navigator.mediaDevices.getUserMedia(constraint);
           if (mediaStream) break;
-        } catch (e) {
+        } catch (e: any) {
+          lastError = e;
           console.warn('Constraint failed:', constraint, e);
         }
       }
 
       if (!mediaStream) {
-        throw new Error('All camera constraints failed');
+        if (lastError?.name === 'NotAllowedError' || lastError?.name === 'PermissionDeniedError') {
+          throw new Error('Camera permission was denied. Please allow camera access in your browser settings.');
+        } else if (lastError?.name === 'NotFoundError' || lastError?.name === 'DevicesNotFoundError') {
+          throw new Error('No camera device was found.');
+        } else if (lastError?.name === 'NotReadableError' || lastError?.name === 'TrackStartError') {
+          throw new Error('Camera is already in use by another application.');
+        }
+        throw new Error('Could not access camera. Please check your connection and permissions.');
       }
 
       streamRef.current = mediaStream;
@@ -86,14 +95,15 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({ onCapture, onClose }
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
         
-        // Wait for metadata to load before playing
-        await new Promise((resolve) => {
-          if (videoRef.current) {
-            videoRef.current.onloadedmetadata = resolve;
-          } else {
-            resolve(null);
-          }
-        });
+        // Wait for metadata to load with a timeout
+        await Promise.race([
+          new Promise((resolve) => {
+            if (videoRef.current) {
+              videoRef.current.onloadedmetadata = resolve;
+            }
+          }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Camera timeout')), 5000))
+        ]);
 
         try {
           await videoRef.current.play();
@@ -103,8 +113,9 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({ onCapture, onClose }
           }
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error accessing camera:', err);
+      setError(err.message || 'Failed to access camera');
     } finally {
       isStartingRef.current = false;
     }
@@ -142,8 +153,32 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({ onCapture, onClose }
       className="fixed inset-0 z-[110] bg-black/95 backdrop-blur-xl flex flex-col items-center justify-center p-4"
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="relative w-full max-w-md aspect-[3/4] bg-neutral-900 overflow-hidden shadow-2xl ring-1 ring-white/10">
-        {!capturedImage ? (
+      <div className="relative w-full max-w-md aspect-[3/4] bg-neutral-900 overflow-hidden shadow-2xl ring-1 ring-white/10 flex items-center justify-center">
+        {error ? (
+          <div className="p-8 text-center space-y-6">
+            <div className="w-16 h-16 bg-red-500/20 text-red-500 rounded-full flex items-center justify-center mx-auto">
+              <X size={32} />
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-white font-bold uppercase tracking-widest">Camera Error</h3>
+              <p className="text-white/60 text-xs leading-relaxed">{error}</p>
+            </div>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => startCamera(facingMode)}
+                className="w-full py-3 bg-white text-black font-bold uppercase tracking-widest text-[10px] rounded-none shadow-lg active:scale-95 transition-transform"
+              >
+                Try Again
+              </button>
+              <button
+                onClick={onClose}
+                className="w-full py-3 bg-white/10 text-white font-bold uppercase tracking-widest text-[10px] rounded-none active:scale-95 transition-transform"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : !capturedImage ? (
           <>
             <video
               ref={videoRef}
